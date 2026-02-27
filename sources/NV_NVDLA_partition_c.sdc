@@ -12,7 +12,7 @@ set_ideal_network [get_ports direct_reset_]
 set_ideal_network [get_ports dla_reset_rstn]
 set_ideal_network -no_propagate [get_nets nvdla_core_rstn]
 set_ideal_network [get_ports test_mode]
-create_clock [get_ports nvdla_core_clk] -period 1.1 -name nvdla_core_clk
+create_clock [get_ports nvdla_core_clk] -period 1.2 -name nvdla_core_clk
 #create_clock [get_ports nvdla_core_clk]  -period 1.1  -waveform {0 0.45}
 # Change 'nvdla_core_clk' to 'clk' to match your netlist
 #create_clock [get_ports clk] -period 0.9 -waveform {0 0.45} -name nvdla_core_clk

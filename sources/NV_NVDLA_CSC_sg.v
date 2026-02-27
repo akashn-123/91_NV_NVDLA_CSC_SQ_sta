@@ -7,7 +7,7 @@
 // ================================================================
 
 // File Name: NV_NVDLA_CSC_sg.v
-
+`timescale 1ns/1ps
 module NV_NVDLA_CSC_sg (
    nvdla_core_clk            //|< i
   ,nvdla_core_ng_clk         //|< i
@@ -123,7 +123,7 @@ input [3:0]                       reg2dp_data_bank;
 input [3:0]                     reg2dp_weight_bank;
 input [20:0]                      reg2dp_atomics;
 input [11:0]                   reg2dp_rls_slices;
-
+wire pkg_adv;
 wire   [30:0] dat_pkg_pd;
 wire   [32:0] dat_pop_data;
 wire          dat_pop_req;
@@ -375,6 +375,7 @@ reg    [19:0] wt_push_data;
 reg           wt_push_req;
 reg           wt_release;
 reg           wt_reuse_release;
+reg [5:0] max_cycles_q;
 
 // synoff nets
 
@@ -3831,19 +3832,16 @@ end
 
 reg is_int8_d2;
 //========================== 2-STAGE PIPELINE ==============================//
-// Stage 1: is_int8_d1 (Kept for other logic)
-// Stage 2: is_int8_d2 (New startpoint to fix the -0.358ns timing path)
-
 always @(posedge nvdla_core_clk or negedge nvdla_core_rstn) begin
-  if (!nvdla_core_rstn) begin
-    is_int8_d1 <= 1'b0;
-    is_int8_d2 <= 1'b0; 
-  end else begin
-    if ((layer_st) == 1'b1) begin
-      is_int8_d1 <= is_int8;
-      is_int8_d2 <= is_int8; // Both capture the new value immediately
+    if (!nvdla_core_rstn) begin
+        is_int8_d1 <= 1'b0;
+        is_int8_d2 <= 1'b0; 
+    end else begin
+        if ((layer_st) == 1'b1) begin
+            is_int8_d1 <= is_int8;    // Stage 1 samples input
+            is_int8_d2 <= is_int8_d1; // Stage 2 samples Stage 1 (Correct 2-cycle delay)
+        end
     end
-  end
 end
 //==========================================================================//
 
@@ -4982,16 +4980,15 @@ always @(posedge nvdla_core_clk or negedge nvdla_core_rstn) begin
   if (!nvdla_core_rstn) begin
     dataout_h_up_cnt <= {13{1'b0}};
   end else begin
-  if ((layer_st | h_cnt_inc_q) == 1'b1) begin
-    dataout_h_up_cnt <= dataout_h_up_cnt_w;
-  // VCS coverage off
-  end else if ((layer_st | op_do_h_en) == 1'b0) begin
-  end else begin
-    dataout_h_up_cnt <= 'bx;  // spyglass disable STARC-2.10.1.6 W443 NoWidthInBasedNum-ML -- (Constant containing x or z used, Based number `bx contains an X, Width specification missing for based number)
-  // VCS coverage on
-  end
+    if ((layer_st | h_cnt_inc_q) == 1'b1) begin
+      dataout_h_up_cnt <= dataout_h_up_cnt_w;
+    end else if ((layer_st | h_cnt_inc_q) == 1'b0) begin
+    end else begin
+      dataout_h_up_cnt <= 'bx;
+    end
   end
 end
+
 `ifdef SPYGLASS_ASSERT_ON
 `else
 // spyglass disable_block NoWidthInBasedNum-ML 
@@ -6024,25 +6021,21 @@ always @(
     cbuf_ready = dat_cbuf_ready & wt_cbuf_ready;
 end
 
-always @(
-  is_running
-  or cbuf_ready
-  or layer_done
-  or pkg_vld
-  or fifo_push_ready
-  ) begin
-    pkg_adv_q = is_running & cbuf_ready & ~layer_done & (~pkg_vld | fifo_push_ready);
-end
+//--------------------------pipelined-----------------------------------------------//
+wire pkg_adv_comb;
+assign pkg_adv_comb = is_running & cbuf_ready & ~layer_done 
+                      & (~pkg_vld | fifo_push_ready);
 
-
-//---------------------------------------------added akash------------------------------//
-reg pkg_adv_q;
+// Step 2: register it
 always @(posedge nvdla_core_clk or negedge nvdla_core_rstn) begin
     if (!nvdla_core_rstn)
         pkg_adv_q <= 1'b0;
     else
-        pkg_adv_q <= pkg_adv;
+        pkg_adv_q <= pkg_adv_comb;
 end
+
+// Step 3: assign the wire used elsewhere
+assign pkg_adv = pkg_adv_comb;
 
 //----------------------------------------------------------------------------------//
 always @(
@@ -7319,9 +7312,6 @@ always @(posedge nvdla_core_clk or negedge nvdla_core_rstn) begin
         end else begin
             {mon_max_cycles, max_cycles} <= {1'b0, wt_max_cycles} - 1'b1;
         end
-        
-        // Correct way to drive max_cycles_q: 
-        // It must be in the same block to avoid multiple drivers.
         // We use the same 'is_dat_greater_q' logic to stay in sync.
         if (is_dat_greater_q) begin
              max_cycles_q <= dat_max_cycles[5:0] - 1'b1;
@@ -7331,14 +7321,6 @@ always @(posedge nvdla_core_clk or negedge nvdla_core_rstn) begin
     end
 end
 //================================================================//
-
-
-always @(posedge nvdla_core_clk or negedge nvdla_core_rstn) begin
-    if (!nvdla_core_rstn)
-        max_cycles_q <= 6'b0;
-    else
-        max_cycles_q <= max_cycles; 
-end
 
 always @(
   pop_cnt

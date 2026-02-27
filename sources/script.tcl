@@ -53,4 +53,4 @@ yosys opt_clean -purge
 
 # 7. Write Outputs
 yosys stat -liberty $LIB_FILE
-yosys write_verilog -noattr -noexpr -nohex "$OUTPUT_DIR/netlist.v."
+yosys write_verilog -noattr -noexpr -nohex "netlist.v"

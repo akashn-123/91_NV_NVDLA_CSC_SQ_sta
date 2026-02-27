@@ -7,7 +7,7 @@
 // ================================================================
 
 // File Name: NV_NVDLA_CSC_SG_dat_fifo.v
-
+`timescale 1ns/1ps
 `define FORCE_CONTENTION_ASSERTION_RESET_ACTIVE 1'b1
 `include "simulate_x_tick.vh"
 module NV_NVDLA_CSC_SG_dat_fifo (
