@@ -1,4 +1,1 @@
-Optimize sources/netlist.v to meet the timing target specified in Specification.md using the standard cell library (/lib/nangate45nm.lib). Yosys and OpenSTA are available for synthesis and static timing analysis. ECO cell swapping is available via sources/eco_fix.py. Do not change functional behavior.
-ECO fixes are only permitted if the post-synthesis slack is ≥ −0.40 ns. If slack is worse than −0.40 ns, the RTL must be restructured to bring slack within that bound before ECO changes will be accepted.Do not change functional behavior. The modified RTL must produce same results as the original, the modified netlist must meet the timing.
-
-
+sources/netlist.v currently fails timing. Optimize the RTL so that post-synthesis WNS is  ≥ 0 ns, using the standard cell library at /lib/nangate45nm.lib. RTL restructuring must be the first approach. Direct netlist modifications via sources/eco_fix.py are only permitted once post-synthesis WNS is ≥ −0.40 ns. Netlist changes made while WNS is worse than −0.40 ns will not be accepted. Do not change functional behavior. See Specification.md for the RTL functionality and timing report structure.
